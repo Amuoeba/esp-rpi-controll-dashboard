@@ -1,0 +1,27 @@
+[Unit]
+Description=Reokto LED Dashboard (Flask + MQTT)
+After=network-online.target mosquitto.service
+Wants=network-online.target mosquitto.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/reokto-dashboard
+Environment=REOKTO_MQTT_HOST=127.0.0.1
+Environment=REOKTO_MQTT_PORT=1883
+Environment=REOKTO_PORT=80
+ExecStart=/usr/bin/python3 /opt/reokto-dashboard/app.py
+Restart=on-failure
+RestartSec=2
+
+# Binding to :80 needs a privileged port; grant just that capability
+# instead of running as root.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+DynamicUser=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

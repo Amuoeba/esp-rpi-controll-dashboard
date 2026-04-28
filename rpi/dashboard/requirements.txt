@@ -1,0 +1,4 @@
+# Only needed if you run the dashboard outside the apt-installed
+# python3-flask / python3-paho-mqtt packages (e.g. in a virtualenv).
+flask>=2.3
+paho-mqtt>=1.6,<2.0

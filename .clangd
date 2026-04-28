@@ -1,0 +1,17 @@
+CompileFlags:
+  Compiler: /home/erik/.platformio/packages/toolchain-xtensa-esp32/bin/xtensa-esp32-elf-g++
+  Remove:
+    - -mlongcalls
+    - -fstrict-volatile-bitfields
+    - -fno-tree-switch-conversion
+    - -freorder-blocks
+    - -fno-jump-tables
+    - -fexceptions
+    - -fno-rtti
+    - -Wno-frame-address
+    - -Wno-error=unused-but-set-variable
+
+Diagnostics:
+  UnusedIncludes: None
+  Suppress:
+    - pp_file_not_found

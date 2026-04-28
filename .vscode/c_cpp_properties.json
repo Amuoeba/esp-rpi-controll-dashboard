@@ -1,0 +1,27 @@
+{
+    "configurations": [
+        {
+            "name": "PlatformIO",
+            "includePath": [
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/src",
+                "${env:HOME}/.platformio/packages/framework-arduinoespressif32/libraries",
+                "${env:HOME}/.platformio/packages/framework-arduinoespressif32/cores/esp32",
+                "${env:HOME}/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include"
+            ],
+            "defines": [
+                "PLATFORMIO=60100",
+                "ARDUINO_ESP32_DEV",
+                "HAVE_CONFIG_H",
+                "MBEDTLS_CONFIG_FILE=\"mbedtls/esp_config.h\"",
+                "UNITY_INCLUDE_CONFIG_H",
+                "WITH_POSIX"
+            ],
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "gcc-x64",
+            "compilerPath": "${env:HOME}/.platformio/packages/toolchain-xtensa-esp32/bin/xtensa-esp32-elf-gcc"
+        }
+    ],
+    "version": 4
+}

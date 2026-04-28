@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reokto LED Dashboard</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f1115;
+      --panel: #1a1d24;
+      --fg: #e7e9ee;
+      --muted: #9aa2b1;
+      --accent: #5cc8ff;
+      --online: #2dd4a1;
+      --offline: #ef5a6f;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      display: grid;
+      place-items: center;
+      padding: 1.5rem;
+    }
+    .card {
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 2rem 2.25rem;
+      width: min(420px, 100%);
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    }
+    h1 {
+      margin: 0 0 0.25rem;
+      font-size: 1.35rem;
+      letter-spacing: .02em;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: .9rem;
+      margin-bottom: 1.5rem;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .8rem;
+      padding: .2rem .6rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      color: var(--muted);
+    }
+    .status .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--offline);
+    }
+    .status.online .dot { background: var(--online); }
+    .status.online { color: var(--online); }
+
+    .freq-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin: 1.25rem 0 .5rem;
+    }
+    .freq-row .label { color: var(--muted); font-size: .85rem; }
+    .freq-row .value {
+      font-size: 2.4rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+    }
+    .freq-row .value::after {
+      content: " Hz";
+      font-size: 1rem;
+      color: var(--muted);
+      margin-left: .25rem;
+    }
+
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+    .ticks {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: .75rem;
+      margin-top: .35rem;
+    }
+    .footer {
+      margin-top: 1.5rem;
+      color: var(--muted);
+      font-size: .75rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Reokto LED</h1>
+    <div class="subtitle">Live blink-frequency control over MQTT</div>
+
+    <span id="status" class="status"><span class="dot"></span><span id="status-text">offline</span></span>
+
+    <div class="freq-row">
+      <span class="label">Frequency</span>
+      <span id="freq-value" class="value">{{ initial.freq }}</span>
+    </div>
+
+    <input
+      id="freq"
+      type="range"
+      min="{{ freq_min }}"
+      max="{{ freq_max }}"
+      step="1"
+      value="{{ initial.freq }}">
+    <div class="ticks">
+      <span>{{ freq_min }} Hz</span>
+      <span>{{ freq_max }} Hz</span>
+    </div>
+
+    <div class="footer">ESP32 &middot; MQTT broker on this Pi</div>
+  </div>
+
+  <script>
+    const slider = document.getElementById('freq');
+    const value  = document.getElementById('freq-value');
+    const status = document.getElementById('status');
+    const statusText = document.getElementById('status-text');
+
+    function applyState(s) {
+      if (s == null) return;
+      if (typeof s.freq === 'number') {
+        value.textContent = s.freq;
+        // Don't fight a user who's currently dragging.
+        if (document.activeElement !== slider) {
+          slider.value = s.freq;
+        }
+      }
+      if (s.status) {
+        statusText.textContent = s.status;
+        status.classList.toggle('online', s.status === 'online');
+      }
+    }
+
+    // Debounce slider commits so dragging fast doesn't flood the broker.
+    let pending = null;
+    let inflight = false;
+    async function commit(freq) {
+      if (inflight) { pending = freq; return; }
+      inflight = true;
+      try {
+        await fetch('/api/freq', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({freq})
+        });
+      } catch (e) { /* SSE will reflect failure via state */ }
+      inflight = false;
+      if (pending !== null) {
+        const next = pending; pending = null;
+        commit(next);
+      }
+    }
+
+    slider.addEventListener('input', () => {
+      value.textContent = slider.value;
+      commit(parseInt(slider.value, 10));
+    });
+
+    const es = new EventSource('/events');
+    es.onmessage = (ev) => {
+      try { applyState(JSON.parse(ev.data)); } catch {}
+    };
+    es.onerror = () => {
+      // Browser will auto-reconnect; just visually mark as offline.
+      statusText.textContent = 'reconnecting…';
+      status.classList.remove('online');
+    };
+  </script>
+</body>
+</html>
