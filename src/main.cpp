@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <esp_wifi.h>
 
 // ESP32-WROOM-32D does NOT have a built-in LED.
 // Connect an external LED to GPIO 2:
@@ -41,7 +42,7 @@ volatile int g_freq_hz = FREQ_DEFAULT;
 unsigned long g_half_period_ms = 1000UL / (FREQ_DEFAULT * 2);
 unsigned long g_last_toggle_ms = 0;
 bool g_led_on = false;
-p
+
 unsigned long g_last_mqtt_attempt_ms = 0;
 
 static int clampFreq(int hz) {
@@ -86,11 +87,80 @@ static void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   setFrequency(static_cast<int>(val), /*publish_state=*/true);
 }
 
+static const char* authModeStr(wifi_auth_mode_t a) {
+  switch (a) {
+    case WIFI_AUTH_OPEN: return "open";
+    case WIFI_AUTH_WEP: return "WEP";
+    case WIFI_AUTH_WPA_PSK: return "WPA";
+    case WIFI_AUTH_WPA2_PSK: return "WPA2";
+    case WIFI_AUTH_WPA_WPA2_PSK: return "WPA/WPA2";
+    case WIFI_AUTH_WPA2_ENTERPRISE: return "WPA2-EAP";
+    case WIFI_AUTH_WPA3_PSK: return "WPA3";
+    case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2/WPA3";
+    default: return "?";
+  }
+}
+
+static void scanForTarget() {
+  Serial.println("[wifi] scanning...");
+  int n = WiFi.scanNetworks(/*async=*/false, /*show_hidden=*/true);
+  bool found = false;
+  for (int i = 0; i < n; ++i) {
+    bool match = WiFi.SSID(i) == WIFI_SSID;
+    Serial.printf("  %s%-32s ch=%d rssi=%d auth=%s\n",
+                  match ? "* " : "  ",
+                  WiFi.SSID(i).c_str(),
+                  WiFi.channel(i),
+                  WiFi.RSSI(i),
+                  authModeStr(WiFi.encryptionType(i)));
+    if (match) found = true;
+  }
+  if (!found) {
+    Serial.printf("[wifi] target SSID '%s' NOT visible in scan\n", WIFI_SSID);
+  }
+  WiFi.scanDelete();
+}
+
+static void onWifiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
+  switch (event) {
+    case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+      Serial.printf("\n[wifi] associated, ch=%u\n",
+                    info.wifi_sta_connected.channel);
+      break;
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+      Serial.printf("\n[wifi] disconnected, reason=%u\n",
+                    info.wifi_sta_disconnected.reason);
+      break;
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+      Serial.printf("[wifi] got ip=%s\n",
+                    WiFi.localIP().toString().c_str());
+      break;
+    default:
+      break;
+  }
+}
+
 static void connectWifi() {
-  Serial.printf("[wifi] connecting to '%s'", WIFI_SSID);
   WiFi.mode(WIFI_STA);
+  WiFi.disconnect(true, true);
+  WiFi.onEvent(onWifiEvent);
   WiFi.setAutoReconnect(true);
   WiFi.persistent(false);
+
+  // Worldwide regulatory domain (channels 1-13). Stops the ESP32 from
+  // silently ignoring an AP placed on channels 12/13.
+  wifi_country_t country = {
+      .cc = "01",
+      .schan = 1,
+      .nchan = 13,
+      .max_tx_power = 20,
+      .policy = WIFI_COUNTRY_POLICY_MANUAL,
+  };
+  esp_wifi_set_country(&country);
+
+  scanForTarget();
+
+  Serial.printf("[wifi] connecting to '%s'", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PSK);
 
   unsigned long start = millis();
@@ -98,7 +168,8 @@ static void connectWifi() {
     delay(250);
     Serial.print('.');
     if (millis() - start > 30000UL) {
-      Serial.println("\n[wifi] connect timeout, restarting");
+      Serial.printf("\n[wifi] connect timeout (status=%d), restarting\n",
+                    WiFi.status());
       ESP.restart();
     }
   }

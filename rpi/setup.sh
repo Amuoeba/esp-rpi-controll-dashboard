@@ -62,6 +62,7 @@ if nmcli -t -f NAME con show | grep -Fxq "${CONN_NAME}"; then
     802-11-wireless.ssid "${SSID}" \
     802-11-wireless.mode ap \
     802-11-wireless.band bg \
+    802-11-wireless.channel 6 \
     ipv4.method shared \
     ipv6.method ignore \
     wifi-sec.key-mgmt wpa-psk \
@@ -73,11 +74,15 @@ else
   nmcli con modify "${CONN_NAME}" \
     802-11-wireless.mode ap \
     802-11-wireless.band bg \
+    802-11-wireless.channel 6 \
     ipv4.method shared \
     ipv6.method ignore \
     wifi-sec.key-mgmt wpa-psk \
     wifi-sec.psk "${PSK}"
 fi
+# Channel 6 (2.437 GHz) is allowed in every regulatory domain. Without
+# pinning, NetworkManager often picks 12 or 13 which ESP32s on the
+# default US regdomain refuse to associate to (silent failure).
 
 # Bring the AP up. `ipv4.method shared` makes NetworkManager spawn an
 # internal dnsmasq, so DHCP for clients (10.42.0.0/24) is automatic.
