@@ -66,6 +66,9 @@ if nmcli -t -f NAME con show | grep -Fxq "${CONN_NAME}"; then
     ipv4.method shared \
     ipv6.method ignore \
     wifi-sec.key-mgmt wpa-psk \
+    wifi-sec.proto rsn \
+    wifi-sec.pairwise ccmp \
+    wifi-sec.group ccmp \
     wifi-sec.psk "${PSK}" \
     connection.autoconnect yes
 else
@@ -78,11 +81,19 @@ else
     ipv4.method shared \
     ipv6.method ignore \
     wifi-sec.key-mgmt wpa-psk \
+    wifi-sec.proto rsn \
+    wifi-sec.pairwise ccmp \
+    wifi-sec.group ccmp \
     wifi-sec.psk "${PSK}"
 fi
 # Channel 6 (2.437 GHz) is allowed in every regulatory domain. Without
 # pinning, NetworkManager often picks 12 or 13 which ESP32s on the
 # default US regdomain refuse to associate to (silent failure).
+#
+# Forcing proto=rsn + pairwise/group=ccmp pins the AP to WPA2 with
+# AES-CCMP. Without this, hostapd-via-NM advertises only WPA1+TKIP for
+# `key-mgmt=wpa-psk`, which ESP32 clients negotiate poorly (visible in
+# scan, "no AP found" on connect).
 
 # Bring the AP up. `ipv4.method shared` makes NetworkManager spawn an
 # internal dnsmasq, so DHCP for clients (10.42.0.0/24) is automatic.
